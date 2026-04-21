@@ -5,7 +5,7 @@
     <artifactId>5COSC022W-Smart-Campus-Project</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>war</packaging>
-    <name>5COSC022W-Smart-Campus-Project-1.0-SNAPSHOT</name>
+    <name>5COSC022W-Smart-Campus-Project-v3</name>
     
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
