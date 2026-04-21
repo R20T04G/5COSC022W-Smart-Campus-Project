@@ -26,17 +26,17 @@ public class JakartaEE8Resource {
             base = base.substring(0, base.length() - 1);
         }
 
-        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("service", "Smart Campus Room Management API");
         payload.put("version", "v1");
         payload.put("status", "online");
 
-        Map<String, Object> contact = new LinkedHashMap<String, Object>();
+        Map<String, Object> contact = new LinkedHashMap<>();
         contact.put("name", "Smart Campus API Team");
         contact.put("email", "api-support@smartcampus.local");
         payload.put("contact", contact);
 
-        Map<String, String> resources = new LinkedHashMap<String, String>();
+        Map<String, String> resources = new LinkedHashMap<>();
         resources.put("rooms", base + "/rooms");
         resources.put("roomById", base + "/rooms/{id}");
         resources.put("sensors", base + "/sensors");

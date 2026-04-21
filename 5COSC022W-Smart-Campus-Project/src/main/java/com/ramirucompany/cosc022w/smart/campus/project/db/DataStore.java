@@ -26,9 +26,9 @@ public final class DataStore {
         HAS_ATTACHED_SENSORS
     }
 
-    private static final Map<Long, Room> ROOMS = new ConcurrentHashMap<Long, Room>();
-    private static final Map<Long, Sensor> SENSORS = new ConcurrentHashMap<Long, Sensor>();
-    private static final Map<Long, List<SensorReading>> READINGS_BY_SENSOR = new ConcurrentHashMap<Long, List<SensorReading>>();
+    private static final Map<Long, Room> ROOMS = new ConcurrentHashMap<>();
+    private static final Map<Long, Sensor> SENSORS = new ConcurrentHashMap<>();
+    private static final Map<Long, List<SensorReading>> READINGS_BY_SENSOR = new ConcurrentHashMap<>();
 
     private static final AtomicLong ROOM_IDS = new AtomicLong(0);
     private static final AtomicLong SENSOR_IDS = new AtomicLong(0);
@@ -59,7 +59,7 @@ public final class DataStore {
         room.setId(ROOM_IDS.incrementAndGet());
         room.setName(request.getName().trim());
         room.setCapacity(request.getCapacity());
-        room.setSensorIds(new CopyOnWriteArrayList<String>());
+        room.setSensorIds(new CopyOnWriteArrayList<>());
 
         ROOMS.put(room.getId(), room);
         return copyRoom(room);
@@ -108,7 +108,7 @@ public final class DataStore {
         sensor.setStatus(normalizeStatus(request.getStatus()));
 
         SENSORS.put(sensor.getId(), sensor);
-        READINGS_BY_SENSOR.put(sensor.getId(), new CopyOnWriteArrayList<SensorReading>());
+        READINGS_BY_SENSOR.put(sensor.getId(), new CopyOnWriteArrayList<>());
 
         Room room = ROOMS.get(sensor.getRoomId());
         if (room != null) {
@@ -124,7 +124,7 @@ public final class DataStore {
     public static List<SensorReading> listReadings(long sensorId) {
         List<SensorReading> readings = READINGS_BY_SENSOR.get(sensorId);
         if (readings == null) {
-            return new ArrayList<SensorReading>();
+            return new ArrayList<>();
         }
 
         return readings.stream()

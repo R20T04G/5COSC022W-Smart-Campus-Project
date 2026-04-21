@@ -14,14 +14,18 @@ public class Room {
     private List<String> sensorIds;
 
     public Room() {
-        this.sensorIds = new ArrayList<String>();
+        this.sensorIds = new ArrayList<>();
     }
 
     public Room(Long id, String name, Integer capacity, List<String> sensorIds) {
         this.id = id;
         this.name = name;
         this.capacity = capacity;
-        setSensorIds(sensorIds);
+        if (sensorIds == null) {
+            this.sensorIds = new ArrayList<>();
+        } else {
+            this.sensorIds = new ArrayList<>(sensorIds);
+        }
     }
 
     public Long getId() {
@@ -54,9 +58,9 @@ public class Room {
 
     public void setSensorIds(List<String> sensorIds) {
         if (sensorIds == null) {
-            this.sensorIds = new ArrayList<String>();
+            this.sensorIds = new ArrayList<>();
         } else {
-            this.sensorIds = new ArrayList<String>(sensorIds);
+            this.sensorIds = new ArrayList<>(sensorIds);
         }
     }
 }
