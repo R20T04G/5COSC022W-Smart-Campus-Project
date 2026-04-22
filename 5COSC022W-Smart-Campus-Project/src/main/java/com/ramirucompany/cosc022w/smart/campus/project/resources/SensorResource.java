@@ -38,7 +38,7 @@ public class SensorResource {
 
         Sensor createdSensor = DataStore.createSensor(sensor);
         URI location = uriInfo.getAbsolutePathBuilder()
-                .path(String.valueOf(createdSensor.getId()))
+                .path(createdSensor.getId())
                 .build();
 
         return Response.created(location)
@@ -48,7 +48,7 @@ public class SensorResource {
 
     @GET
     @Path("/{id}")
-    public Response getSensorById(@PathParam("id") long id) {
+    public Response getSensorById(@PathParam("id") String id) {
         Sensor sensor = DataStore.getSensor(id);
         if (sensor == null) {
             throw new NotFoundException("Sensor " + id + " was not found.");
@@ -58,7 +58,7 @@ public class SensorResource {
     }
 
     @Path("/{id}/readings")
-    public SensorReadingResource sensorReadingResource(@PathParam("id") long id) {
+    public SensorReadingResource sensorReadingResource(@PathParam("id") String id) {
         if (!DataStore.sensorExists(id)) {
             throw new NotFoundException("Sensor " + id + " was not found.");
         }

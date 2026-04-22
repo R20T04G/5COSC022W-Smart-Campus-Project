@@ -20,9 +20,9 @@ import javax.ws.rs.core.UriInfo;
 @Consumes(MediaType.APPLICATION_JSON)
 public class SensorReadingResource {
 
-    private final long sensorId;
+    private final String sensorId;
 
-    public SensorReadingResource(long sensorId) {
+    public SensorReadingResource(String sensorId) {
         this.sensorId = sensorId;
     }
 
@@ -54,7 +54,7 @@ public class SensorReadingResource {
         }
 
         URI location = uriInfo.getAbsolutePathBuilder()
-                .path(String.valueOf(createdReading.getId()))
+                .path(createdReading.getId())
                 .build();
 
         return Response.created(location)

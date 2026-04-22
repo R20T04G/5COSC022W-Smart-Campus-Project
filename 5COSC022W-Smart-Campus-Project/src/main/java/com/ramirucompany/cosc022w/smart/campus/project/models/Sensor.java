@@ -5,16 +5,16 @@ package com.ramirucompany.cosc022w.smart.campus.project.models;
  */
 public class Sensor {
 
-    private Long id;
+    private String id;
     private String type;
     private String status;
     private Double currentValue;
-    private Long roomId;
+    private String roomId;
 
     public Sensor() {
     }
 
-    public Sensor(Long id, String type, String status, Double currentValue, Long roomId) {
+    public Sensor(String id, String type, String status, Double currentValue, String roomId) {
         this.id = id;
         this.type = type;
         this.status = status;
@@ -22,11 +22,11 @@ public class Sensor {
         this.roomId = roomId;
     }
 
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -54,11 +54,11 @@ public class Sensor {
         this.currentValue = currentValue;
     }
 
-    public Long getRoomId() {
+    public String getRoomId() {
         return roomId;
     }
 
-    public void setRoomId(Long roomId) {
+    public void setRoomId(String roomId) {
         this.roomId = roomId;
     }
 }

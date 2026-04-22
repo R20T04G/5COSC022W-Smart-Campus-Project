@@ -8,7 +8,7 @@ import java.util.List;
  */
 public class Room {
 
-    private Long id;
+    private String id;
     private String name;
     private Integer capacity;
     private List<String> sensorIds;
@@ -17,7 +17,7 @@ public class Room {
         this.sensorIds = new ArrayList<>();
     }
 
-    public Room(Long id, String name, Integer capacity, List<String> sensorIds) {
+    public Room(String id, String name, Integer capacity, List<String> sensorIds) {
         this.id = id;
         this.name = name;
         this.capacity = capacity;
@@ -28,11 +28,11 @@ public class Room {
         }
     }
 
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 

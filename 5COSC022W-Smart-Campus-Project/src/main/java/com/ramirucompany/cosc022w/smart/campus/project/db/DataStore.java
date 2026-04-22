@@ -1,12 +1,12 @@
 package com.ramirucompany.cosc022w.smart.campus.project.db;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -27,13 +27,12 @@ public final class DataStore {
         HAS_ATTACHED_SENSORS
     }
 
-    private static final Map<Long, Room> ROOMS = new ConcurrentHashMap<>();
-    private static final Map<Long, Sensor> SENSORS = new ConcurrentHashMap<>();
-    private static final Map<Long, List<SensorReading>> READINGS_BY_SENSOR = new ConcurrentHashMap<>();
+    private static final Map<String, Room> ROOMS = new ConcurrentHashMap<>();
+    private static final Map<String, Sensor> SENSORS = new ConcurrentHashMap<>();
+    private static final Map<String, List<SensorReading>> READINGS_BY_SENSOR = new ConcurrentHashMap<>();
 
     private static final AtomicLong ROOM_IDS = new AtomicLong(0);
     private static final AtomicLong SENSOR_IDS = new AtomicLong(0);
-    private static final AtomicLong READING_IDS = new AtomicLong(0);
 
     private DataStore() {
     }
@@ -46,18 +45,18 @@ public final class DataStore {
                 .collect(Collectors.toList());
     }
 
-    public static Room getRoom(long roomId) {
+    public static Room getRoom(String roomId) {
         Room room = ROOMS.get(roomId);
         return room == null ? null : copyRoom(room);
     }
 
-    public static boolean roomExists(long roomId) {
+    public static boolean roomExists(String roomId) {
         return ROOMS.containsKey(roomId);
     }
 
     public static synchronized Room createRoom(Room request) {
         Room room = new Room();
-        room.setId(ROOM_IDS.incrementAndGet());
+        room.setId("ROOM-" + ROOM_IDS.incrementAndGet());
         room.setName(request.getName().trim());
         room.setCapacity(request.getCapacity());
         room.setSensorIds(new CopyOnWriteArrayList<>());
@@ -66,7 +65,7 @@ public final class DataStore {
         return copyRoom(room);
     }
 
-    public static synchronized DeleteRoomResult deleteRoom(long roomId) {
+    public static synchronized DeleteRoomResult deleteRoom(String roomId) {
         Room room = ROOMS.get(roomId);
         if (room == null) {
             return DeleteRoomResult.NOT_FOUND;
@@ -91,18 +90,18 @@ public final class DataStore {
                 .collect(Collectors.toList());
     }
 
-    public static Sensor getSensor(long sensorId) {
+    public static Sensor getSensor(String sensorId) {
         Sensor sensor = SENSORS.get(sensorId);
         return sensor == null ? null : copySensor(sensor);
     }
 
-    public static boolean sensorExists(long sensorId) {
+    public static boolean sensorExists(String sensorId) {
         return SENSORS.containsKey(sensorId);
     }
 
     public static synchronized Sensor createSensor(Sensor request) {
         Sensor sensor = new Sensor();
-        sensor.setId(SENSOR_IDS.incrementAndGet());
+        sensor.setId("SENSOR-" + SENSOR_IDS.incrementAndGet());
         sensor.setType(request.getType().trim());
         sensor.setRoomId(request.getRoomId());
         sensor.setCurrentValue(request.getCurrentValue());
@@ -113,16 +112,15 @@ public final class DataStore {
 
         Room room = ROOMS.get(sensor.getRoomId());
         if (room != null) {
-            String sensorIdText = String.valueOf(sensor.getId());
-            if (!room.getSensorIds().contains(sensorIdText)) {
-                room.getSensorIds().add(sensorIdText);
+            if (!room.getSensorIds().contains(sensor.getId())) {
+                room.getSensorIds().add(sensor.getId());
             }
         }
 
         return copySensor(sensor);
     }
 
-    public static List<SensorReading> listReadings(long sensorId) {
+    public static List<SensorReading> listReadings(String sensorId) {
         List<SensorReading> readings = READINGS_BY_SENSOR.get(sensorId);
         if (readings == null) {
             return new ArrayList<>();
@@ -130,24 +128,24 @@ public final class DataStore {
 
         return readings.stream()
                 .map(DataStore::copyReading)
-                .sorted(Comparator.comparing(SensorReading::getId))
+                .sorted(Comparator.comparing(SensorReading::getTimestamp))
                 .collect(Collectors.toList());
     }
 
-    public static synchronized SensorReading createReading(long sensorId, SensorReading request) {
+    public static synchronized SensorReading createReading(String sensorId, SensorReading request) {
         Sensor sensor = SENSORS.get(sensorId);
         if (sensor == null) {
             return null;
         }
 
         SensorReading reading = new SensorReading();
-        reading.setId(READING_IDS.incrementAndGet());
+        reading.setId(UUID.randomUUID().toString());
         reading.setValue(request.getValue());
 
-        if (request.getTimestamp() == null || request.getTimestamp().trim().isEmpty()) {
-            reading.setTimestamp(OffsetDateTime.now(ZoneOffset.UTC).toString());
+        if (request.getTimestamp() <= 0) {
+            reading.setTimestamp(Instant.now().toEpochMilli());
         } else {
-            reading.setTimestamp(request.getTimestamp().trim());
+            reading.setTimestamp(request.getTimestamp());
         }
 
         READINGS_BY_SENSOR

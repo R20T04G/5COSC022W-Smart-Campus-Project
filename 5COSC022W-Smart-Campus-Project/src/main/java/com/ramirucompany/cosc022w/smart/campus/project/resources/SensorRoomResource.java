@@ -21,7 +21,7 @@ import javax.ws.rs.core.UriInfo;
 @Path("/rooms")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
-public class RoomResource {
+public class SensorRoomResource {
 
     @GET
     public Response listRooms() {
@@ -34,7 +34,7 @@ public class RoomResource {
 
         Room createdRoom = DataStore.createRoom(room);
         URI location = uriInfo.getAbsolutePathBuilder()
-                .path(String.valueOf(createdRoom.getId()))
+                .path(createdRoom.getId())
                 .build();
 
         return Response.created(location)
@@ -44,7 +44,7 @@ public class RoomResource {
 
     @GET
     @Path("/{id}")
-    public Response getRoomById(@PathParam("id") long id) {
+    public Response getRoomById(@PathParam("id") String id) {
         Room room = DataStore.getRoom(id);
         if (room == null) {
             throw new NotFoundException("Room " + id + " was not found.");
@@ -55,7 +55,7 @@ public class RoomResource {
 
     @DELETE
     @Path("/{id}")
-    public Response deleteRoom(@PathParam("id") long id) {
+    public Response deleteRoom(@PathParam("id") String id) {
         DataStore.DeleteRoomResult deleteResult = DataStore.deleteRoom(id);
         if (deleteResult == DataStore.DeleteRoomResult.HAS_ATTACHED_SENSORS) {
             throw new RoomNotEmptyException("Room " + id + " cannot be deleted because it still has registered sensors.");
