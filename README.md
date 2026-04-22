@@ -185,92 +185,121 @@ Every error returns a structured JSON object. No raw stack traces or server erro
 
 ---
 
-## Report Answers
+## Coursework Report: Architectural Decisions and Implementations
 
-Below are my answers to the report questions from the coursework specification.
+The following section addresses the theoretical and practical requirements outlined in the coursework specification. Each sub-section details the problem context, the architectural approach taken, and the subsequent technical resolution within the JAX-RS framework.
 
-### 1.1 - JAX-RS Lifecycle and Synchronisation
+### 1.1 JAX-RS Lifecycle and Synchronisation
 
-By default, JAX-RS resource classes are request-scoped. This means the container creates a brand new instance of each resource class for every incoming HTTP request, and throws it away once the response is sent. The benefit of this is that each request handler runs in isolation and there is no risk of one thread accidentally corrupting another thread's local variables.
+**Question:** How does the JAX-RS lifecycle impact state management, and what synchronisation strategies are required for an in-memory data store?
 
-The challenge this creates is around shared data. Because I am not using an external database, the in-memory data collections need to live outside of the resource classes in a shared location. I placed them as `static` fields inside a `DataStore` utility class. Every request-scoped resource instance accesses the same static maps.
+**Problem Context & Approach:** 
+By default, JAX-RS resource classes operate on a request-scoped lifecycle. The web container instantiates a novel object for every incoming HTTP request and discards it upon response completion. While this promotes stateless, thread-safe request handling at the controller level, it precludes the storage of persistent data within resource instance variables. Consequently, maintaining an in-memory database requires a centralised, shared state mechanism that can handle highly concurrent access from multiple request threads safely.
 
-To prevent race conditions, I chose `ConcurrentHashMap` for the room and sensor maps and `CopyOnWriteArrayList` for the sensor ID lists inside each room. These collections handle simple read and write operations safely on their own. However, for compound operations that involve multiple steps (for example, creating a new sensor and then adding its ID to the parent room's sensor list), I wrapped the logic in `synchronized` blocks. This ensures that another thread cannot observe a half-finished state where the sensor exists but the room's list has not been updated yet. I also used `AtomicLong` for generating unique IDs without needing additional synchronisation.
+**Resolution & Implementation:**
+To resolve this, data collections were abstracted into a separate `DataStore` utility class using `static` variables, acting as a singleton data repository. To mitigate race conditions, thread-safe collections from the `java.util.concurrent` package were employed: `ConcurrentHashMap` for entities and `CopyOnWriteArrayList` for nested ID references. 
+While these structures guarantee atomic single-operations, compound transactions (e.g., creating a sensor and simultaneously appending its ID to a room's list) remain vulnerable to interleaving threads. Thus, `synchronized` blocks were strategically applied around these compound operations to ensure atomicity, maintaining strict referential integrity without a traditional relational database lock.
 
-### 1.2 - Discovery Endpoint and HATEOAS
+### 1.2 Discovery Endpoint and HATEOAS
 
-The discovery endpoint at `GET /api/v1` returns a JSON object containing the service name, API version ("v1"), server status, a contact object, and a complete map of all available resource URIs.
+**Question:** What is the theoretical purpose of a discovery endpoint, and how does it relate to RESTful maturity?
 
-This design follows the principle of HATEOAS (Hypermedia as the Engine of Application State). The idea is that a client should be able to discover the entire API starting from a single root URL, without needing to read external documentation or hardcode paths into their application.
+**Problem Context & Approach:** 
+A discovery endpoint provides a programmatic entry point for clients to explore the API. This aligns with the HATEOAS (Hypermedia as the Engine of Application State) constraint, which dictates that a client should navigate the application entirely through hypermedia links provided dynamically by the server, rather than relying on out-of-band documentation or hardcoded URIs.
 
-The practical benefit is decoupling. If I decide to rename `/rooms` to `/spaces` in a future version, a well-written client that reads the discovery response would pick up the change automatically. The API essentially documents itself at runtime, which is more reliable than maintaining a separate document that can fall out of sync with the actual implementation.
+**Resolution & Implementation:**
+The `GET /api/v1` endpoint was implemented to return a structured JSON payload encompassing service metadata (version, status, contact details) alongside a dictionary of available resource URIs. This decouples the client from the server's internal routing structure. Should the server alter a path (e.g., migrating `/rooms` to `/locations`), a HATEOAS-compliant client will automatically adapt by reading the updated discovery response, significantly reducing maintenance overhead and increasing systemic resilience.
 
-### 2.1 - Room Implementation and POST Return Strategy
+### 2.1 Room Implementation and POST Return Strategy
 
-When a room is created via `POST /rooms`, the API returns the full room object in the response body (including the server-generated ID and the initialised empty sensor list). The response also includes a `201 Created` status and a `Location` header pointing to the new resource.
+**Question:** When creating a resource via POST, what is the most efficient data return strategy for the client?
 
-The alternative would be to return just the ID and let the client make a second GET request to fetch the complete object. I chose the full-object approach because it eliminates that extra round-trip. In a typical workflow, the client creates a room and then immediately needs to display it. If I only returned the ID, every single creation would require two HTTP calls instead of one. The small increase in response size (a few extra bytes for the name and capacity fields) is a worthwhile trade-off for cutting the number of network requests in half.
+**Problem Context & Approach:** 
+Upon successful resource creation (`POST /rooms`), the server must return a `201 Created` status and a `Location` header identifying the new resource URI. However, the server must also determine what to include in the HTTP response body: a minimal acknowledgement (e.g., just the ID) or the complete instantiated object. 
 
-### 2.2 - Deletion and Idempotency
+**Resolution & Implementation:**
+The API was designed to return the full, newly created room object within the response body. This decision was driven by network efficiency and client-side usability. Returning solely an ID would mandate a subsequent `GET` request from the client to retrieve the room's details (such as the server-generated default fields or an empty sensor list) for UI rendering. By returning the full object upfront, this "N+1 request problem" is circumvented, thereby halving the network latency and reducing the overall connection load on the server.
 
-`DELETE /rooms/{id}` removes a room from the data store. Before deleting, the API checks whether the room still has sensors attached to it. If it does, the request is rejected with a `409 Conflict` response to prevent orphaned sensor records.
+### 2.2 Deletion and Idempotency
 
-The DELETE operation is fully idempotent. Whether a client sends the request once, twice, or ten times for the same room ID, the observable state of the server is identical after each call: the room does not exist. I return `204 No Content` for both a successful deletion and for cases where the room was already gone (or never existed). This means clients can safely retry on network timeouts without worrying about side effects or needing special logic to distinguish "deleted now" from "was already deleted."
+**Question:** How does the DELETE operation guarantee idempotency, and why is this critical for distributed systems?
 
-### 3.1 - Sensor Integrity and Content-Type Enforcement
+**Problem Context & Approach:** 
+In HTTP semantics, `DELETE` must be idempotent, meaning the observable systemic state remains identical regardless of whether the operation is executed once or multiple times consecutively. This is crucial for network resilience, allowing clients to safely retry failed requests without risking unintended side-effects. Furthermore, deletion logic must enforce referential integrity to prevent orphaned child entities.
 
-When a new sensor is registered via `POST /sensors`, the API validates that the `roomId` in the request body actually references an existing room. If it does not, the API throws a `LinkedResourceNotFoundException`, which gets mapped to `422 Unprocessable Entity`. This prevents sensors from being created with dangling references to rooms that do not exist.
+**Resolution & Implementation:**
+The `DELETE /rooms/{id}` method achieves idempotency by returning a `204 No Content` status upon successful deletion. Crucially, if a client submits the same request again, the server evaluates the state (the room is absent) and returns the same `204 No Content` status. To maintain data integrity, a pre-deletion check evaluates if the room contains associated sensors; if `true`, a `409 Conflict` is returned, proactively blocking the deletion and preserving database consistency.
 
-The `@Consumes(MediaType.APPLICATION_JSON)` annotation on the POST method tells the JAX-RS framework that this endpoint only accepts JSON request bodies. If a client accidentally sends a request with `Content-Type: text/plain` or `application/xml`, the framework intercepts it before my code ever runs and returns a `415 Unsupported Media Type` error automatically. This is handled entirely at the container level, so I do not need to write any manual content-type checking logic inside my methods.
+### 3.1 Sensor Integrity and Content-Type Enforcement
 
-### 3.2 - Filtered Retrieval: QueryParams vs PathParams
+**Question:** How are incoming request payloads validated for structural integrity and semantic correctness?
 
-The `GET /sensors` endpoint accepts an optional `@QueryParam("type")` parameter. When provided (e.g., `?type=temperature`), the response only includes sensors of that type. When omitted, all sensors are returned.
+**Problem Context & Approach:** 
+Robust APIs must defend against malformed payloads and invalid relational references. Validation must occur at two tiers: syntactic (is the payload structurally correct and in the expected format?) and semantic (does the data make logical sense within the system's current state?).
 
-Path parameters are meant to identify a specific resource in a hierarchy. For example, `/rooms/ROOM-1` means "the room with ID ROOM-1." The path defines identity. Query parameters, on the other hand, are meant for optional modifiers on a collection. Filtering sensors by type does not change what resource you are accessing (it is still the sensors collection), it just narrows down the results. Query strings are also inherently optional, so omitting the parameter simply returns the unfiltered list. They also scale better if you want to add more filters later (e.g., `?type=temperature&status=active`), whereas embedding every filter in the URL path would create an impractical and confusing structure.
+**Resolution & Implementation:**
+Syntactic validation is managed declaratively via JAX-RS annotations. The `@Consumes(MediaType.APPLICATION_JSON)` annotation delegates media-type enforcement to the container; any request omitting the correct JSON header is automatically rejected with a `415 Unsupported Media Type` error before reaching the business logic. 
+Semantic validation is handled programmatically within the method. When a client attempts to create a sensor, the service interrogates the `DataStore` to confirm the provided `roomId` exists. If it does not, a custom `LinkedResourceNotFoundException` is thrown, which the framework translates into a `422 Unprocessable Entity` response, thereby rejecting invalid foreign keys.
 
-### 4.1 - Sub-Resource Locator Architecture
+### 3.2 Filtered Retrieval: Query Parameters vs. Path Parameters
 
-The `/sensors/{id}/readings` endpoint uses the sub-resource locator pattern. In `SensorResource`, the method annotated with `@Path("/{id}/readings")` has no HTTP method annotation (`@GET`, `@POST`, etc.). Instead, it returns a new instance of `SensorReadingResource`, which is a separate class that handles all reading-related operations.
+**Question:** What is the architectural distinction between query parameters and path parameters when designing filtered endpoints?
 
-This pattern is about managing complexity. Without it, every reading endpoint (GET the history, POST a new reading, and any future ones like DELETE a specific reading) would live inside the `SensorResource` class, which already handles sensor CRUD. By delegating to a separate class, each file stays focused on a single responsibility. The `SensorResource` deals with sensors, and `SensorReadingResource` deals with readings. This makes the code easier to navigate, easier to test individually, and easier to extend later without bloating an existing class.
+**Problem Context & Approach:** 
+RESTful design principles dictate that URLs should identify resources. When a client needs to retrieve a subset of a collection (e.g., only sensors of type 'temperature'), developers must choose between appending a path segment (`/sensors/type/temperature`) or utilising a query string (`/sensors?type=temperature`).
 
-### 4.2 - Historical Reading Management
+**Resolution & Implementation:**
+Query parameters (`@QueryParam`) were selected for filtering. Path parameters define resource identity and hierarchical structure. Query strings, conversely, act as optional modifiers upon a collection. Filtering does not change the fundamental identity of the resource being queried (it remains the 'sensors' collection). Furthermore, query parameters offer superior extensibility; combining multiple filters (e.g., `?type=temperature&status=active`) via query strings is trivial, whereas encoding multiple optional parameters into a rigid URI path generates brittle and convoluted routing patterns.
 
-`SensorReadingResource` supports two operations:
+### 4.1 Sub-Resource Locator Architecture
 
-- `GET` returns the full reading history for a sensor, sorted by timestamp.
-- `POST` records a new reading with an auto-generated UUID, the current timestamp (as epoch milliseconds), and the submitted value.
+**Question:** How does the Sub-Resource Locator pattern mitigate code bloat in monolithic controller classes?
 
-When a new reading is posted, the API also updates the parent sensor's `currentValue` field to match the new reading. This side-effect is handled inside `DataStore.createReading()` within a `synchronized` block, so the reading insertion and the parent update happen atomically. A concurrent `GET /sensors/{id}` will never return a sensor whose `currentValue` is out of sync with its most recent reading.
+**Problem Context & Approach:** 
+As an API expands, appending all child operations (e.g., reading histories) into the parent's controller class (`SensorResource`) leads to unmanageable "God classes." This violates the Single Responsibility Principle and complicates unit testing.
 
-### 5.1 - Exception Mapping: Why 422 Instead of 404
+**Resolution & Implementation:**
+The Sub-Resource Locator pattern was implemented via the `@Path("/{id}/readings")` method within `SensorResource`. Crucially, this method lacks an HTTP verb annotation (`@GET`, `@POST`). Instead, it dynamically instantiates and returns a `SensorReadingResource` object. The JAX-RS framework then delegates the remainder of the request to this child class. This structural delegation cleanly separates sensor-management logic from reading-management logic, ensuring highly cohesive, maintainable, and modular codebases.
 
-I created three custom exception classes, each with a dedicated `ExceptionMapper`:
+### 4.2 Historical Reading Management
 
-- `RoomNotEmptyExceptionMapper` returns 409 Conflict when trying to delete a room with sensors.
-- `LinkedResourceNotFoundExceptionMapper` returns 422 Unprocessable Entity when a payload references a non-existent resource.
-- `SensorUnavailableExceptionMapper` returns 403 Forbidden when posting a reading to a maintenance/offline sensor.
+**Question:** How are nested data operations structurally managed to maintain parent-child synchronization?
 
-When a client sends `POST /sensors` with a `roomId` that does not exist, returning `404 Not Found` would be misleading. A 404 means the URL endpoint itself could not be resolved. In this case, `POST /sensors` is a perfectly valid endpoint and the server understood the request just fine. The problem is that the JSON body contains a reference to a room that is not in the database. That is a semantic validation error in the payload, not a routing error. HTTP 422 (Unprocessable Entity) is designed for exactly this situation: the server understood the request format but cannot process the instructions because they violate a business rule.
+**Problem Context & Approach:** 
+When recording historical data for a sensor, an operation occurs that modifies two distinct scopes: persisting the new reading itself, and updating the parent sensor's aggregate state (its `currentValue`).
 
-### 5.2 - Global Safety Net and Cybersecurity
+**Resolution & Implementation:**
+`SensorReadingResource` handles the `/readings` sub-path. When a new reading is posted, it generates a UUID and epoch timestamp for the reading. Crucially, the insertion of this reading and the update of the parent sensor's `currentValue` are tightly coupled within a `synchronized` block in the `DataStore`. This ensures that a concurrent client querying the parent sensor immediately receives the updated value without observing a transient, out-of-sync state.
 
-The `GlobalThrowableMapper` class implements `ExceptionMapper<Throwable>`, which makes it a catch-all for any exception that is not handled by the three specific mappers above. It converts every unhandled error into a clean `500 Internal Server Error` JSON response with a generic message like "An unexpected server error occurred."
+### 5.1 Exception Mapping: 422 Unprocessable Entity vs. 404 Not Found
 
-Without this mapper, the application server would return its default error page, which typically includes the full Java stack trace. This is a serious security risk because stack traces reveal:
+**Question:** Why is a 422 status code more semantically appropriate than a 404 when handling invalid foreign key references in a POST payload?
 
-- Internal file paths and package structure (e.g., `com.ramirucompany.cosc022w.smart.campus.project...`), giving an attacker a map of the codebase.
-- Framework and library versions (e.g., Jersey 2.41, Tomcat 10.x), which lets an attacker search for known vulnerabilities (CVEs) in those exact versions.
-- The specific lines of code where the failure occurred, providing insight into control flow and potential logic weaknesses.
+**Problem Context & Approach:** 
+When processing a `POST /sensors` request containing a non-existent `roomId`, the server must return an error. A common anti-pattern is returning `404 Not Found`. However, 404 fundamentally implies a routing failure—that the target URI does not exist. 
 
-By catching everything at the API boundary, I make sure no internal implementation detail ever reaches an external consumer.
+**Resolution & Implementation:**
+A custom `LinkedResourceNotFoundExceptionMapper` was designed to map these logical errors to `422 Unprocessable Entity`. In this scenario, the endpoint URI (`/sensors`) is entirely valid, and the server successfully parsed the JSON syntax. The failure occurred because the semantics of the payload (the foreign key reference) violated business rules. HTTP 422 explicitly communicates that the server understood the content type and syntax, but could not process the instructions, providing a much more precise and accurate diagnostic signal to the client.
 
-### 5.3 - Logging Filter (Bonus)
+### 5.2 Global Safety Net and Cybersecurity
 
-I also implemented a `LoggingFilter` class that acts as both a `ContainerRequestFilter` and a `ContainerResponseFilter`. It logs every incoming HTTP method and URI, and every outgoing response status code.
+**Question:** How does a global exception mapper mitigate cybersecurity vulnerabilities related to information disclosure?
 
-The advantage of using JAX-RS filters for cross-cutting concerns like logging is centralisation. If I placed `Logger.info()` calls inside every resource method manually, the business logic would be cluttered with boilerplate. Worse, if someone added a new endpoint and forgot the logging call, that route would be invisible in the logs. With a filter registered via `@Provider`, the logging is applied universally by the framework and no endpoint can slip through.
+**Problem Context & Approach:** 
+Unhandled runtime exceptions typically result in the application server generating a default HTML error page containing a full Java stack trace. This exposes critical internal implementation details—such as package hierarchies, file paths, and exact library versions—to external actors, violating the principle of least privilege and providing attackers with reconnaissance data to exploit known vulnerabilities (CVEs).
+
+**Resolution & Implementation:**
+A `GlobalThrowableMapper` implementing `ExceptionMapper<Throwable>` was deployed as a universal safety net. This acts as the lowest-priority interceptor in the JAX-RS pipeline. Any exception not explicitly handled by a more specific mapper is caught here and translated into a sanitised, generic `500 Internal Server Error` JSON response. By ensuring that raw stack traces never cross the API boundary, the system's internal topology remains opaque, significantly reducing the attack surface.
+
+### 5.3 Request and Response Observability (Bonus)
+
+**Question:** What are the architectural advantages of implementing observability through JAX-RS Filters rather than inline logging?
+
+**Problem Context & Approach:** 
+Logging is a quintessential cross-cutting concern. Inserting logging statements directly into individual resource methods tangles infrastructure code with business logic, violating separation of concerns. Furthermore, it relies on human diligence; omitted log statements lead to blind spots in system observability.
+
+**Resolution & Implementation:**
+A `LoggingFilter` implementing both `ContainerRequestFilter` and `ContainerResponseFilter` was integrated via the `@Provider` annotation. This intercepts all incoming requests and outgoing responses at the container boundary, logging the HTTP method, URI, and resulting status code. This approach guarantees comprehensive, automated observability across the entire API surface without polluting the underlying business logic, demonstrating robust enterprise design patterns.
 
 ---
 
