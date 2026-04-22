@@ -24,7 +24,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- Jersey JAX-RS runtime (required for plain Apache Tomcat) -->
+        <!-- Jersey JAX-RS runtime  -->
         <dependency>
             <groupId>org.glassfish.jersey.containers</groupId>
             <artifactId>jersey-container-servlet</artifactId>
