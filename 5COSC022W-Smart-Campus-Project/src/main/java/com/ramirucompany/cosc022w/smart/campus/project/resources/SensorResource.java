@@ -1,8 +1,7 @@
 package com.ramirucompany.cosc022w.smart.campus.project.resources;
 
 import com.ramirucompany.cosc022w.smart.campus.project.db.DataStore;
-import com.ramirucompany.cosc022w.smart.campus.project.errors.ForbiddenOperationException;
-import com.ramirucompany.cosc022w.smart.campus.project.errors.UnprocessableEntityException;
+import com.ramirucompany.cosc022w.smart.campus.project.errors.LinkedResourceNotFoundException;
 import com.ramirucompany.cosc022w.smart.campus.project.models.Sensor;
 import java.net.URI;
 import java.util.Arrays;
@@ -26,7 +25,7 @@ import javax.ws.rs.core.UriInfo;
 @Consumes(MediaType.APPLICATION_JSON)
 public class SensorResource {
 
-    private static final List<String> ALLOWED_STATUS_VALUES = Arrays.asList("active", "inactive", "offline");
+    private static final List<String> ALLOWED_STATUS_VALUES = Arrays.asList("active", "inactive", "offline", "maintenance");
 
     @GET
     public Response listSensors(@QueryParam("type") String type) {
@@ -69,33 +68,29 @@ public class SensorResource {
 
     private void validateSensorPayload(Sensor sensor) {
         if (sensor == null) {
-            throw new UnprocessableEntityException("Sensor payload is required.");
+            throw new LinkedResourceNotFoundException("Sensor payload is required.");
         }
 
         if (sensor.getRoomId() == null) {
-            throw new UnprocessableEntityException("roomId is required for sensor registration.");
+            throw new LinkedResourceNotFoundException("roomId is required for sensor registration.");
         }
 
         if (!DataStore.roomExists(sensor.getRoomId())) {
-            throw new UnprocessableEntityException("roomId " + sensor.getRoomId() + " does not reference an existing room.");
+            throw new LinkedResourceNotFoundException("roomId " + sensor.getRoomId() + " does not reference an existing room.");
         }
 
         if (sensor.getType() == null || sensor.getType().trim().isEmpty()) {
-            throw new UnprocessableEntityException("Sensor type is required.");
-        }
-
-        if ("biometric".equalsIgnoreCase(sensor.getType().trim())) {
-            throw new ForbiddenOperationException("Biometric sensors are not permitted through this API.");
+            throw new LinkedResourceNotFoundException("Sensor type is required.");
         }
 
         if (sensor.getStatus() != null && sensor.getStatus().trim().isEmpty()) {
-            throw new UnprocessableEntityException("Sensor status cannot be blank when provided.");
+            throw new LinkedResourceNotFoundException("Sensor status cannot be blank when provided.");
         }
 
         if (sensor.getStatus() != null) {
             String normalizedStatus = sensor.getStatus().trim().toLowerCase(Locale.ROOT);
             if (!ALLOWED_STATUS_VALUES.contains(normalizedStatus)) {
-                throw new UnprocessableEntityException("Sensor status must be one of: active, inactive, offline.");
+                throw new LinkedResourceNotFoundException("Sensor status must be one of: active, inactive, offline.");
             }
         }
     }

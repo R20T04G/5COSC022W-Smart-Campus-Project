@@ -1,3 +1,19 @@
-/Smart_Campus_Sensor_Manager/
-/Cw doc/
+/target/
 /5COSC022W-Smart-Campus-Project/target/
+
+nbproject/private/
+nbactions*.xml
+nb-configuration.xml
+
+/Cw doc/
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+*.iml
+.idea/
+.vscode/
+.settings/
+.classpath
+.project

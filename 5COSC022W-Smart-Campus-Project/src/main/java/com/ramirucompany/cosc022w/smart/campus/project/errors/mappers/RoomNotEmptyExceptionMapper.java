@@ -11,25 +11,25 @@ import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import com.ramirucompany.cosc022w.smart.campus.project.errors.ApiError;
-import com.ramirucompany.cosc022w.smart.campus.project.errors.ForbiddenOperationException;
+import com.ramirucompany.cosc022w.smart.campus.project.errors.RoomNotEmptyException;
 
 @Provider
-public class ForbiddenOperationExceptionMapper implements ExceptionMapper<ForbiddenOperationException> {
+public class RoomNotEmptyExceptionMapper implements ExceptionMapper<RoomNotEmptyException> {
 
     @Context
     private UriInfo uriInfo;
 
     @Override
-    public Response toResponse(ForbiddenOperationException exception) {
+    public Response toResponse(RoomNotEmptyException exception) {
         ApiError error = new ApiError(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
-                Response.Status.FORBIDDEN.getStatusCode(),
-                Response.Status.FORBIDDEN.getReasonPhrase(),
+                Response.Status.CONFLICT.getStatusCode(),
+                Response.Status.CONFLICT.getReasonPhrase(),
                 exception.getMessage(),
                 getPath()
         );
 
-        return Response.status(Response.Status.FORBIDDEN)
+        return Response.status(Response.Status.CONFLICT)
                 .type(MediaType.APPLICATION_JSON)
                 .entity(error)
                 .build();

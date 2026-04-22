@@ -11,25 +11,25 @@ import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import com.ramirucompany.cosc022w.smart.campus.project.errors.ApiError;
-import com.ramirucompany.cosc022w.smart.campus.project.errors.UnprocessableEntityException;
+import com.ramirucompany.cosc022w.smart.campus.project.errors.SensorUnavailableException;
 
 @Provider
-public class UnprocessableEntityExceptionMapper implements ExceptionMapper<UnprocessableEntityException> {
+public class SensorUnavailableExceptionMapper implements ExceptionMapper<SensorUnavailableException> {
 
     @Context
     private UriInfo uriInfo;
 
     @Override
-    public Response toResponse(UnprocessableEntityException exception) {
+    public Response toResponse(SensorUnavailableException exception) {
         ApiError error = new ApiError(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
-                422,
-                "Unprocessable Entity",
+                Response.Status.FORBIDDEN.getStatusCode(),
+                Response.Status.FORBIDDEN.getReasonPhrase(),
                 exception.getMessage(),
                 getPath()
         );
 
-        return Response.status(422)
+        return Response.status(Response.Status.FORBIDDEN)
                 .type(MediaType.APPLICATION_JSON)
                 .entity(error)
                 .build();

@@ -1,8 +1,8 @@
 package com.ramirucompany.cosc022w.smart.campus.project.resources;
 
 import com.ramirucompany.cosc022w.smart.campus.project.db.DataStore;
-import com.ramirucompany.cosc022w.smart.campus.project.errors.ConflictException;
-import com.ramirucompany.cosc022w.smart.campus.project.errors.UnprocessableEntityException;
+import com.ramirucompany.cosc022w.smart.campus.project.errors.RoomNotEmptyException;
+import com.ramirucompany.cosc022w.smart.campus.project.errors.LinkedResourceNotFoundException;
 import com.ramirucompany.cosc022w.smart.campus.project.models.Room;
 import java.net.URI;
 import javax.ws.rs.Consumes;
@@ -58,7 +58,7 @@ public class RoomResource {
     public Response deleteRoom(@PathParam("id") long id) {
         DataStore.DeleteRoomResult deleteResult = DataStore.deleteRoom(id);
         if (deleteResult == DataStore.DeleteRoomResult.HAS_ATTACHED_SENSORS) {
-            throw new ConflictException("Room " + id + " cannot be deleted because it still has registered sensors.");
+            throw new RoomNotEmptyException("Room " + id + " cannot be deleted because it still has registered sensors.");
         }
 
         // Return 204 for both deleted and already-missing cases to keep DELETE idempotent.
@@ -67,23 +67,23 @@ public class RoomResource {
 
     private void validateRoomPayload(Room room) {
         if (room == null) {
-            throw new UnprocessableEntityException("Room payload is required.");
+            throw new LinkedResourceNotFoundException("Room payload is required.");
         }
 
         if (room.getName() == null || room.getName().trim().isEmpty()) {
-            throw new UnprocessableEntityException("Room name is required.");
+            throw new LinkedResourceNotFoundException("Room name is required.");
         }
 
         if (room.getCapacity() == null) {
-            throw new UnprocessableEntityException("Room capacity is required.");
+            throw new LinkedResourceNotFoundException("Room capacity is required.");
         }
 
         if (room.getCapacity() < 0) {
-            throw new UnprocessableEntityException("Room capacity must be zero or greater.");
+            throw new LinkedResourceNotFoundException("Room capacity must be zero or greater.");
         }
 
         if (room.getSensorIds() != null && !room.getSensorIds().isEmpty()) {
-            throw new UnprocessableEntityException("sensorIds are managed by the API and must not be provided when creating a room.");
+            throw new LinkedResourceNotFoundException("sensorIds are managed by the API and must not be provided when creating a room.");
         }
     }
 }

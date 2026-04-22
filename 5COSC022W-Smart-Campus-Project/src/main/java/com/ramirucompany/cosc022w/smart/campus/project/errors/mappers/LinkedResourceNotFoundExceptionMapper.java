@@ -11,25 +11,25 @@ import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import com.ramirucompany.cosc022w.smart.campus.project.errors.ApiError;
-import com.ramirucompany.cosc022w.smart.campus.project.errors.ConflictException;
+import com.ramirucompany.cosc022w.smart.campus.project.errors.LinkedResourceNotFoundException;
 
 @Provider
-public class ConflictExceptionMapper implements ExceptionMapper<ConflictException> {
+public class LinkedResourceNotFoundExceptionMapper implements ExceptionMapper<LinkedResourceNotFoundException> {
 
     @Context
     private UriInfo uriInfo;
 
     @Override
-    public Response toResponse(ConflictException exception) {
+    public Response toResponse(LinkedResourceNotFoundException exception) {
         ApiError error = new ApiError(
                 OffsetDateTime.now(ZoneOffset.UTC).toString(),
-                Response.Status.CONFLICT.getStatusCode(),
-                Response.Status.CONFLICT.getReasonPhrase(),
+                422,
+                "Unprocessable Entity",
                 exception.getMessage(),
                 getPath()
         );
 
-        return Response.status(Response.Status.CONFLICT)
+        return Response.status(422)
                 .type(MediaType.APPLICATION_JSON)
                 .entity(error)
                 .build();
