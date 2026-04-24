@@ -1,14 +1,37 @@
 # Smart Campus Room Management API
 
+**Module:** 5COSC022W Client-Server Architectures  
+**Student:** Ramiru Gunarathna  
+
+---
+
 ## Overview
 
-This is my coursework project for the **5COSC022W Client-Server Architectures** module. It is a RESTful API that manages campus rooms, IoT sensors, and historical sensor readings.
+A RESTful API built with JAX-RS (Jersey) for managing campus rooms, IoT sensors, and historical sensor readings. The API follows a layered architecture with dedicated resource classes, a centralised thread-safe in-memory data store, custom exception mappers, and a request/response logging filter.
 
-The entire project runs without a database. All data lives in-memory using `ConcurrentHashMap` and `CopyOnWriteArrayList` to keep things thread-safe. It is built as a Maven WAR and deployed from NetBeans onto Apache Tomcat.
+All data lives in-memory using `ConcurrentHashMap` and `CopyOnWriteArrayList` for thread safety. There is no external database. The project is packaged as a Maven WAR and deployed from NetBeans onto Apache Tomcat.
+
+---
+
+## Technologies
+
+| Component | Technology |
+|---|---|
+| Language | Java 8 |
+| Framework | JAX-RS (Jersey 2.41) |
+| Platform | Jakarta EE 8 |
+| JSON Binding | Jackson (jersey-media-json-jackson) |
+| Build Tool | Apache Maven |
+| Server | Apache Tomcat |
+| IDE | NetBeans |
+| Packaging | WAR |
+
+---
 
 ## How to Build and Run
 
-**What you need installed:**
+**Prerequisites:**
+
 - Java 8 or higher
 - Apache Maven
 - NetBeans IDE
@@ -16,17 +39,19 @@ The entire project runs without a database. All data lives in-memory using `Conc
 
 **Steps:**
 
-1. Open NetBeans, go to `File` > `Open Project` and pick the `5COSC022W-Smart-Campus-Project` folder.
-2. Make sure Tomcat is added under `Services` > `Servers` in NetBeans.
-3. Right-click the project and hit **Clean and Build**. Maven will pull in Jersey and the other dependencies.
-4. Right-click the project again and click **Run**. Tomcat starts up and the WAR gets deployed.
-5. Once it is running, open Postman or a browser and go to the base URL below.
+1. Open NetBeans, go to `File` > `Open Project` and select the `5COSC022W-Smart-Campus-Project` folder.
+2. Ensure Tomcat is added under `Services` > `Servers` in NetBeans.
+3. Right-click the project and select **Clean and Build**. Maven will download Jersey and other dependencies.
+4. Right-click the project again and click **Run**. Tomcat starts and the WAR is deployed.
+5. Once running, open Postman or a browser and navigate to the base URL below.
 
-## Base URL
+**Base URL:**
 
 ```
 http://localhost:8080/5COSC022W-Smart-Campus-Project/api/v1
 ```
+
+---
 
 ## Data Model
 
@@ -36,58 +61,7 @@ http://localhost:8080/5COSC022W-Smart-Campus-Project/api/v1
 | **Sensor** | `id` (String), `type` (String), `status` (String), `currentValue` (Double), `roomId` (String) |
 | **SensorReading** | `id` (String), `timestamp` (long, epoch millis), `value` (Double) |
 
-
-## API Request Flow
-
-```mermaid
-flowchart TD
-    Client["Client (Postman / cURL)"]
-
-    Client -- "HTTP Request" --> Filter["LoggingFilter\n logs method + URI"]
-    Filter --> AppPath["JakartaRestConfiguration\n@ApplicationPath /api/v1"]
-
-    AppPath --> Discovery["JakartaEE8Resource\nGET /api/v1\nGET /diagnostics/fail"]
-    AppPath --> RoomRes["SensorRoomResource\nGET /rooms\nPOST /rooms\nGET /rooms/{id}\nDELETE /rooms/{id}"]
-    AppPath --> SensorRes["SensorResource\nGET /sensors\nGET /sensors?type=...\nPOST /sensors\nGET /sensors/{id}"]
-
-    SensorRes -- "Sub-resource locator\n@Path /{id}/readings" --> ReadingRes["SensorReadingResource\nGET /sensors/{id}/readings\nPOST /sensors/{id}/readings"]
-
-    RoomRes --> DS["DataStore\nConcurrentHashMap + synchronized"]
-    SensorRes --> DS
-    ReadingRes -- "Side-effect:\nupdates parent\nsensor currentValue" --> DS
-
-    DS --> Models["Room | Sensor | SensorReading"]
-
-    style Client fill:#dbeafe,stroke:#2563eb
-    style Filter fill:#fef9c3,stroke:#ca8a04
-    style DS fill:#fed7aa,stroke:#c2410c
-    style Models fill:#d1fae5,stroke:#059669
-```
-
-## Error Handling Pipeline
-
-```mermaid
-flowchart LR
-    Req["Incoming Request"] --> Resource["Resource Method"]
-
-    Resource -- "RoomNotEmptyException" --> M409["RoomNotEmptyExceptionMapper\n409 Conflict"]
-    Resource -- "LinkedResourceNotFoundException" --> M422["LinkedResourceNotFoundExceptionMapper\n422 Unprocessable Entity"]
-    Resource -- "SensorUnavailableException" --> M403["SensorUnavailableExceptionMapper\n403 Forbidden"]
-    Resource -- "Any other Throwable" --> M500["GlobalThrowableMapper\n500 Internal Server Error"]
-
-    M409 --> JSON["Structured JSON\ntimestamp, status,\nerror, message, path"]
-    M422 --> JSON
-    M403 --> JSON
-    M500 --> JSON
-
-    style M409 fill:#fecaca,stroke:#b91c1c
-    style M422 fill:#fecaca,stroke:#b91c1c
-    style M403 fill:#fecaca,stroke:#b91c1c
-    style M500 fill:#fecaca,stroke:#b91c1c
-    style JSON fill:#e0e7ff,stroke:#4338ca
-```
-
-## Entity Relationships
+### Entity Relationships
 
 ```mermaid
 erDiagram
@@ -116,7 +90,11 @@ erDiagram
     }
 ```
 
-| Method | Path | What it does |
+---
+
+## API Endpoints
+
+| Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/v1` | Discovery endpoint with version info, contact, and resource links |
 | `GET` | `/api/v1/rooms` | Lists all rooms |
@@ -131,9 +109,65 @@ erDiagram
 | `POST` | `/api/v1/sensors/{id}/readings` | Posts a new reading and updates the parent sensor's currentValue |
 | `GET` | `/api/v1/diagnostics/fail` | Intentionally throws an error to test the global 500 mapper |
 
+---
+
+## Architecture
+
+### API Request Flow
+
+```mermaid
+flowchart TD
+    Client["Client (Postman / cURL)"]
+
+    Client -- "HTTP Request" --> Filter["LoggingFilter\n logs method + URI"]
+    Filter --> AppPath["JakartaRestConfiguration\n@ApplicationPath /api/v1"]
+
+    AppPath --> Discovery["JakartaEE8Resource\nGET /api/v1\nGET /diagnostics/fail"]
+    AppPath --> RoomRes["SensorRoomResource\nGET /rooms\nPOST /rooms\nGET /rooms/{id}\nDELETE /rooms/{id}"]
+    AppPath --> SensorRes["SensorResource\nGET /sensors\nGET /sensors?type=...\nPOST /sensors\nGET /sensors/{id}"]
+
+    SensorRes -- "Sub-resource locator\n@Path /{id}/readings" --> ReadingRes["SensorReadingResource\nGET /sensors/{id}/readings\nPOST /sensors/{id}/readings"]
+
+    RoomRes --> DS["DataStore\nConcurrentHashMap + synchronized"]
+    SensorRes --> DS
+    ReadingRes -- "Side-effect:\nupdates parent\nsensor currentValue" --> DS
+
+    DS --> Models["Room | Sensor | SensorReading"]
+
+    style Client fill:#dbeafe,stroke:#2563eb
+    style Filter fill:#fef9c3,stroke:#ca8a04
+    style DS fill:#fed7aa,stroke:#c2410c
+    style Models fill:#d1fae5,stroke:#059669
+```
+
+### Error Handling Pipeline
+
+```mermaid
+flowchart LR
+    Req["Incoming Request"] --> Resource["Resource Method"]
+
+    Resource -- "RoomNotEmptyException" --> M409["RoomNotEmptyExceptionMapper\n409 Conflict"]
+    Resource -- "LinkedResourceNotFoundException" --> M422["LinkedResourceNotFoundExceptionMapper\n422 Unprocessable Entity"]
+    Resource -- "SensorUnavailableException" --> M403["SensorUnavailableExceptionMapper\n403 Forbidden"]
+    Resource -- "Any other Throwable" --> M500["GlobalThrowableMapper\n500 Internal Server Error"]
+
+    M409 --> JSON["Structured JSON\ntimestamp, status,\nerror, message, path"]
+    M422 --> JSON
+    M403 --> JSON
+    M500 --> JSON
+
+    style M409 fill:#fecaca,stroke:#b91c1c
+    style M422 fill:#fecaca,stroke:#b91c1c
+    style M403 fill:#fecaca,stroke:#b91c1c
+    style M500 fill:#fecaca,stroke:#b91c1c
+    style JSON fill:#e0e7ff,stroke:#4338ca
+```
+
+---
+
 ## Error Handling
 
-Every error returns a structured JSON object. No raw stack traces or server error pages ever leak out.
+Every error returns a structured JSON object. No raw stack traces or server error pages leak out.
 
 ```json
 {
@@ -145,33 +179,35 @@ Every error returns a structured JSON object. No raw stack traces or server erro
 }
 ```
 
-| Code | Exception | When it happens |
+| Code | Exception | When It Happens |
 |---|---|---|
 | 409 Conflict | `RoomNotEmptyException` | Trying to delete a room that still has sensors |
 | 422 Unprocessable Entity | `LinkedResourceNotFoundException` | Request body references something that does not exist |
 | 403 Forbidden | `SensorUnavailableException` | Posting a reading to a sensor in maintenance or offline |
 | 500 Internal Server Error | `GlobalThrowableMapper` | Any unhandled exception (catch-all safety net) |
 
+---
+
 ## Project Structure
 
 ```
 5COSC022W-Smart-Campus-Project/
-    pom.xml
-    src/main/java/.../project/
+    pom.xml                                Maven WAR config (Jakarta EE 8 + Jersey 2.41)
+    src/main/java/com/ramirucompany/cosc022w/smart/campus/project/
         JakartaRestConfiguration.java       @ApplicationPath("/api/v1")
         db/
-            DataStore.java                  Thread-safe in-memory store
+            DataStore.java                  Thread-safe in-memory store (ConcurrentHashMap)
         models/
-            Room.java
-            Sensor.java
-            SensorReading.java
+            Room.java                       Room entity
+            Sensor.java                     Sensor entity
+            SensorReading.java              SensorReading entity
         resources/
-            JakartaEE8Resource.java         Discovery + diagnostics endpoint
-            SensorRoomResource.java         Room CRUD
+            JakartaEE8Resource.java         Discovery (GET /api/v1) + diagnostics endpoint
+            SensorRoomResource.java         Room CRUD (GET, POST, DELETE)
             SensorResource.java             Sensor CRUD + sub-resource locator
             SensorReadingResource.java      Readings sub-resource (GET/POST)
         errors/
-            ApiError.java                   Structured JSON error body
+            ApiError.java                   Structured JSON error response body
             LinkedResourceNotFoundException.java
             RoomNotEmptyException.java
             SensorUnavailableException.java
@@ -181,7 +217,7 @@ Every error returns a structured JSON object. No raw stack traces or server erro
                 SensorUnavailableExceptionMapper.java         403
                 GlobalThrowableMapper.java                    500
         filters/
-            LoggingFilter.java              Request/Response logging
+            LoggingFilter.java              ContainerRequestFilter + ContainerResponseFilter
 ```
 
 ---
@@ -277,7 +313,7 @@ When recording historical data for a sensor, an operation occurs that modifies t
 **Question:** Why is a 422 status code more semantically appropriate than a 404 when handling invalid foreign key references in a POST payload?
 
 **Problem Context & Approach:** 
-When processing a `POST /sensors` request containing a non-existent `roomId`, the server must return an error. A common anti-pattern is returning `404 Not Found`. However, 404 fundamentally implies a routing failure—that the target URI does not exist. 
+When processing a `POST /sensors` request containing a non-existent `roomId`, the server must return an error. A common anti-pattern is returning `404 Not Found`. However, 404 fundamentally implies a routing failure--that the target URI does not exist. 
 
 **Resolution & Implementation:**
 A custom `LinkedResourceNotFoundExceptionMapper` was designed to map these logical errors to `422 Unprocessable Entity`. In this scenario, the endpoint URI (`/sensors`) is entirely valid, and the server successfully parsed the JSON syntax. The failure occurred because the semantics of the payload (the foreign key reference) violated business rules. HTTP 422 explicitly communicates that the server understood the content type and syntax, but could not process the instructions, providing a much more precise and accurate diagnostic signal to the client.
@@ -287,7 +323,7 @@ A custom `LinkedResourceNotFoundExceptionMapper` was designed to map these logic
 **Question:** How does a global exception mapper mitigate cybersecurity vulnerabilities related to information disclosure?
 
 **Problem Context & Approach:** 
-Unhandled runtime exceptions typically result in the application server generating a default HTML error page containing a full Java stack trace. This exposes critical internal implementation details—such as package hierarchies, file paths, and exact library versions—to external actors, violating the principle of least privilege and providing attackers with reconnaissance data to exploit known vulnerabilities (CVEs).
+Unhandled runtime exceptions typically result in the application server generating a default HTML error page containing a full Java stack trace. This exposes critical internal implementation details--such as package hierarchies, file paths, and exact library versions--to external actors, violating the principle of least privilege and providing attackers with reconnaissance data to exploit known vulnerabilities (CVEs).
 
 **Resolution & Implementation:**
 A `GlobalThrowableMapper` implementing `ExceptionMapper<Throwable>` was deployed as a universal safety net. This acts as the lowest-priority interceptor in the JAX-RS pipeline. Any exception not explicitly handled by a more specific mapper is caught here and translated into a sanitised, generic `500 Internal Server Error` JSON response. By ensuring that raw stack traces never cross the API boundary, the system's internal topology remains opaque, significantly reducing the attack surface.
@@ -303,3 +339,16 @@ Logging is a quintessential cross-cutting concern. Inserting logging statements 
 A `LoggingFilter` implementing both `ContainerRequestFilter` and `ContainerResponseFilter` was integrated via the `@Provider` annotation. This intercepts all incoming requests and outgoing responses at the container boundary, logging the HTTP method, URI, and resulting status code. This approach guarantees comprehensive, automated observability across the entire API surface without polluting the underlying business logic, demonstrating robust enterprise design patterns.
 
 ---
+
+## Key Design Decisions
+
+| Decision | Rationale |
+|---|---|
+| In-memory storage with `ConcurrentHashMap` | Thread-safe without external database dependency; `synchronized` blocks protect compound operations |
+| Full object returned on POST (201) | Eliminates the need for a follow-up GET, reducing network round-trips |
+| `@QueryParam` for sensor filtering | Query strings are optional modifiers on a collection, not resource identifiers; supports composable filtering |
+| Sub-resource locator for readings | Separates reading logic into its own class, avoiding monolithic controllers and following the Single Responsibility Principle |
+| Custom `ExceptionMapper` per error type | Each business rule violation maps to a precise HTTP status code with a structured JSON body |
+| `GlobalThrowableMapper` catch-all | Prevents stack trace leakage, reducing the API's attack surface |
+| `LoggingFilter` via `@Provider` | Cross-cutting request/response logging without polluting business logic |
+| DELETE idempotency | Repeated DELETE calls return 204 consistently; rooms with sensors are blocked with 409 |
