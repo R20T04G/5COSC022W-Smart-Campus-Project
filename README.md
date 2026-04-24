@@ -36,6 +36,92 @@ http://localhost:8080/5COSC022W-Smart-Campus-Project/api/v1
 | **Sensor** | `id` (String), `type` (String), `status` (String), `currentValue` (Double), `roomId` (String) |
 | **SensorReading** | `id` (String), `timestamp` (long, epoch millis), `value` (Double) |
 
+## System Architecture
+
+```mermaid
+block-beta
+    columns 3
+
+    block:CLIENT:3
+        columns 3
+        space
+        C["Client\n(Postman / cURL / Browser)"]
+        space
+    end
+
+    space:3
+
+    block:SERVER["Apache Tomcat Server"]:3
+        columns 3
+
+        block:FILTER:3
+            columns 1
+            F["LoggingFilter\n@Provider\nContainerRequestFilter\nContainerResponseFilter"]
+        end
+
+        block:JAXRS["JAX-RS Framework (Jersey)"]:3
+            columns 1
+            APP["JakartaRestConfiguration\n@ApplicationPath('/api/v1')"]
+        end
+
+        block:RESOURCES["Resource Layer (Request-Scoped)"]:3
+            columns 3
+            R1["JakartaEE8Resource\nGET /api/v1\nGET /diagnostics/fail"]
+            R2["SensorRoomResource\nGET POST DELETE\n/rooms"]
+            R3["SensorResource\nGET POST\n/sensors"]
+        end
+
+        block:SUB:3
+            columns 3
+            space
+            space
+            R4["SensorReadingResource\n(Sub-Resource Locator)\nGET POST\n/sensors/{id}/readings"]
+        end
+
+        block:ERRORS["Exception Mappers (@Provider)"]:3
+            columns 4
+            E409["RoomNotEmpty\n409"]
+            E422["LinkedResource\nNotFound\n422"]
+            E403["Sensor\nUnavailable\n403"]
+            E500["GlobalThrowable\n500"]
+        end
+
+        block:DATA["Data Layer (Singleton, Static)"]:3
+            columns 1
+            DS["DataStore\nConcurrentHashMap\nCopyOnWriteArrayList\nsynchronized blocks"]
+        end
+
+        block:MODELS:3
+            columns 3
+            M1["Room"]
+            M2["Sensor"]
+            M3["SensorReading"]
+        end
+    end
+
+    C -- "HTTP Request / Response" --> F
+    F --> APP
+    APP --> R1
+    APP --> R2
+    APP --> R3
+    R3 -- "@Path('/{id}/readings')" --> R4
+    R2 --> DS
+    R3 --> DS
+    R4 -- "Side-effect:\nupdates parent\ncurrentValue" --> DS
+    DS --> M1
+    DS --> M2
+    DS --> M3
+
+    style CLIENT fill:#dbeafe,stroke:#2563eb
+    style FILTER fill:#fef9c3,stroke:#ca8a04
+    style JAXRS fill:#e0e7ff,stroke:#4338ca
+    style RESOURCES fill:#dbeafe,stroke:#2563eb
+    style SUB fill:#dbeafe,stroke:#2563eb
+    style ERRORS fill:#fecaca,stroke:#b91c1c
+    style DATA fill:#fed7aa,stroke:#c2410c
+    style MODELS fill:#d1fae5,stroke:#059669
+```
+
 ## API Request Flow
 
 ```mermaid
