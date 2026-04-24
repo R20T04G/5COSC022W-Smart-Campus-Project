@@ -328,7 +328,7 @@ Unhandled runtime exceptions typically result in the application server generati
 **Resolution & Implementation:**
 A `GlobalThrowableMapper` implementing `ExceptionMapper<Throwable>` was deployed as a universal safety net. This acts as the lowest-priority interceptor in the JAX-RS pipeline. Any exception not explicitly handled by a more specific mapper is caught here and translated into a sanitised, generic `500 Internal Server Error` JSON response. By ensuring that raw stack traces never cross the API boundary, the system's internal topology remains opaque, significantly reducing the attack surface.
 
-### 5.3 Request and Response Observability (Bonus)
+### 5.3 Request and Response Observability
 
 **Question:** What are the architectural advantages of implementing observability through JAX-RS Filters rather than inline logging?
 
